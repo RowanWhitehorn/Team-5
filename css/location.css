@@ -1,0 +1,46 @@
+html {
+    height: 100%;
+}
+
+.center-box {
+    width: 500px;
+    padding: 30px;
+    color: rgb(79, 31, 31);
+    background-color: rgb(245, 245, 220, 0.6); 
+    border: 2px solid rgb(79, 31, 31);
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    text-align: center;
+    margin-top: 30px;
+}
+
+body {
+    background-image: url("Home Page.jpg");
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+}
+
+img {
+    width: 300px;
+    height: 450px;
+    
+}
+
+#homeBtn {
+    color: beige;
+    background-color: rgb(101, 69, 49);
+    border-color: rgb(79, 31, 31);
+    text-align: center;
+    text-decoration: none;
+}
+
+
+.home {
+    margin: 10px;
+    padding: 10px;
+    border-radius: 15px;
+}
+

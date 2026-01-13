@@ -1,0 +1,28 @@
+body, html {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-image: url("Outdoor.jpg");
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.center-box {
+  width: 1000px;
+  padding: 30px;
+  color: rgb(79, 31, 31);
+  background-color: rgb(245, 245, 220, 0.6); 
+  border: 2px solid rgb(79, 31, 31);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  text-align: center;
+}
+
+#fill {
+  text-align: center;
+}
