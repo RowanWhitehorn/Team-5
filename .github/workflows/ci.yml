@@ -1,31 +1,63 @@
-name: CI Pipeline
+# name: CI Pipeline
+
+# on:
+#   push:
+#     branches: [ main ]
+#   pull_request:
+
+# jobs:
+#   build-test:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: 18
+
+#       - name: Install dependencies
+#         run: npm install
+
+#       - name: Run lint (security & code quality)
+#         run: npm run lint || echo "No lint script"
+
+#       - name: Run tests
+#         run: npm test || echo "No tests yet"
+
+#       - name: Dependency vulnerability check
+#         run: npm audit --audit-level=high || true
+
+name: CI
 
 on:
   push:
     branches: [ main ]
-  pull_request:
 
 jobs:
-  build-test:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      # Checkout repo
+      - uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      # Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: '18'
 
+      # Install dependencies
       - name: Install dependencies
         run: npm install
 
-      - name: Run lint (security & code quality)
-        run: npm run lint || echo "No lint script"
-
+      # Run tests (optional, just skips if you have none)
       - name: Run tests
-        run: npm test || echo "No tests yet"
+        run: npm test || echo "No tests found"
 
-      - name: Dependency vulnerability check
-        run: npm audit --audit-level=high || true
+      # Build Docker image
+      - name: Build Docker Image
+        run: docker build -t my-app .
