@@ -29,35 +29,4 @@ jobs:
 
       - name: Dependency vulnerability check
         run: npm audit --audit-level=high || true
-
-# name: CI
-
-# on:
-#   push:
-#     branches: [ main ]
-
-# jobs:
-#   build:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       # Checkout repo
-#       - uses: actions/checkout@v3
-
-#       # Setup Node.js
-#       - name: Setup Node.js
-#         uses: actions/setup-node@v3
-#         with:
-#           node-version: '18'
-
-#       # Install dependencies
-#       - name: Install dependencies
-#         run: npm install
-
-#       # Run tests (optional, just skips if you have none)
-#       - name: Run tests
-#         run: npm test || echo "No tests found"
-
-#       # Build Docker image
-#       - name: Build Docker Image
-#         run: docker build -t my-app .
+        
