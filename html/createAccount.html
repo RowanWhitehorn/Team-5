@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/addList.css">
+    <title>Create Account</title>
+  </head>
+  <body>
+    <div class="center-box">
+      <h1>Create Account</h1>
+      <form id="createForm" action="/createAccount" method="POST">
+        <b>Username:</b>
+        <input name="username" required /> <br><br>
+        <b>Email:</b>
+        <input name="email" type="email" required /> <br><br>
+        <b>Password:</b>
+        <input id="password" name="password" type="password" required /> <br><br>
+        <b>Confirm Password:</b>
+        <input id="confirmPassword" name="confirmPassword" type="password" required /> <br><br>
+        <small id="pwNote">Password must be at least 6 characters.</small><br><br>
+        <button type="submit">Create Account</button>
+      </form>
+      <p></p>
+      <a href="/">Already have an account? Login</a>
+      <p></p>
+      <a href="/home">Back to Home</a>
+    </div>
+
+    <script>
+      const form = document.getElementById('createForm');
+      const pw = document.getElementById('password');
+      const cpw = document.getElementById('confirmPassword');
+
+      form.addEventListener('submit', function(e) {
+        if (pw.value.length < 6) {
+          alert('Password must be at least 6 characters');
+          e.preventDefault();
+          return;
+        }
+        if (pw.value !== cpw.value) {
+          alert('Passwords do not match');
+          e.preventDefault();
+          return;
+        }
+      });
+    </script>
+  </body>
+</html>

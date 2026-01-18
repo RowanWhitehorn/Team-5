@@ -18,17 +18,25 @@
             <div>
                 <div>
                     <h1>Add new ideas to Indoor List!</h1>
-                    <form action="/addListIndoor" method="POST">
+                    <form action="/addListIndoor" method="POST" enctype="multipart/form-data">
                         <b>Item or Facility:</b> <input name="itemOrfacility" placeholder="Item or Facility" /> <br><br>
                         <b>Description:</b> <input name="description" placeholder="Description" /> <br><br>
                         <b>Comment:</b> <input name="comment" placeholder="Comment" /> <br><br>
+                        <b>Priority Level:</b> <select name="priority" required>
+                            <option value="1">Priority 1 (Most Priority)</option>
+                            <option value="2">Priority 2 (Medium Priority)</option>
+                            <option value="3">Priority 3 (Least Priority)</option>
+                        </select> <br><br>
+                        <b>Estimated Cost:</b> <input type="number" name="estimatedCost" placeholder="Estimated Cost in dollars" required /> <br><br>
                         <div id="fil">
                             <b>Image:</b> <input type="file" name="image" placeholder="image" required><br>
                         </div>
                         <p> </p>
                         <button type="submit">Add new ideas</button><br>
                         <p> </p>
-                        <a href="/">Back to Home</a>
+                        <a href="/home">Back to Home</a>
+                        <p></p>
+                        <a href="/logout">Logout</a>
                     </form>
                 </div>
             </div>

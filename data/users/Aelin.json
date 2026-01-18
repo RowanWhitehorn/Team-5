@@ -1,0 +1,63 @@
+{
+  "username": "Aelin",
+  "email": "aelin@aelin.com",
+  "password": "$2a$10$ZsHSmO6v2W7tBvOGV6csVOgh03jDM8MKwd3eSWgulvthfRXpZDqzC",
+  "layoutsIndoor": [
+    {
+      "id": 1,
+      "itemOrfacility": "Library Room",
+      "description": "Several bookshelves that could fit all my books and with a rolling ladder attach to it.",
+      "comment": "I need a place to put my books at",
+      "image": "1768589351290-394922180.jpg",
+      "priority": 1,
+      "estimatedCost": 2500
+    },
+    {
+      "id": 2,
+      "itemOrfacility": "Curved Staircase",
+      "description": "Curved staircase made out of marble with detailed railings.",
+      "comment": "I need a good place for my OOTD.",
+      "image": "1768589547817-80563224.jpg",
+      "priority": 3,
+      "estimatedCost": 5000
+    },
+    {
+      "id": 3,
+      "itemOrfacility": "Huge Windows",
+      "description": "Huge windows that have a beautiful scenery and bright light that can come through.",
+      "comment": "I don't want to feel suffocated.",
+      "image": "1768589761163-38764999.jpg",
+      "priority": 2,
+      "estimatedCost": 970
+    }
+  ],
+  "layoutsOutdoor": [
+    {
+      "id": 1,
+      "itemOrfacility": "Green House",
+      "description": "Variety of flowers and fruits will be grown in there.",
+      "comment": "It needs to be colourful.",
+      "image": "1768589896719-497812457.jpg",
+      "priority": 1,
+      "estimatedCost": 4500
+    },
+    {
+      "id": 2,
+      "itemOrfacility": "Water Fountain",
+      "description": "Made from light coloured stones and lights will be attached so that can see it at night.",
+      "comment": "It will be at the backyard.",
+      "image": "1768590228952-415812073.jpg",
+      "priority": 2,
+      "estimatedCost": 978
+    },
+    {
+      "id": 3,
+      "itemOrfacility": "Gazebo",
+      "description": "It needs to have a seating area.",
+      "comment": "I want to read there.",
+      "image": "1768590398197-535123169.jpg",
+      "priority": 3,
+      "estimatedCost": 2000
+    }
+  ]
+}
