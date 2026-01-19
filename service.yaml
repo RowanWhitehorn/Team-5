@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: website-service
+  name: team5-service
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
-    app: website
+    app: website      # <--- CHANGED: Now matches the label in your deployment
   ports:
-  - port: 3000
-    targetPort: 3000
-    nodePort: 30007
+    - protocol: TCP
+      port: 80        # The public port (http://external-ip:80)
+      targetPort: 3000 # The container port (must match containerPort in deployment)

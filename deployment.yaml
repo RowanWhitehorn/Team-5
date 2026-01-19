@@ -10,11 +10,11 @@ spec:
   template:
     metadata:
       labels:
-        app: website
+        app: website  # This label matches the service selector above
     spec:
       containers:
       - name: website
-        image: my-website
-        imagePullPolicy: Never
+        image: mangosteen221/team5-web-app:v1
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
