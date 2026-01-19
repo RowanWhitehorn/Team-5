@@ -222,7 +222,7 @@ app.get('/homeListsIndoor', (req, res) => {
         </li>`;
     }
     
-    // Filter items  for both priority and cost 
+    // Contains the main buttons and functions for  both deleting items and Filtering  based on  both their priority and cost 
     res.send(`
         <!doctype html>
         <html lang="en">
