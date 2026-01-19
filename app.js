@@ -292,7 +292,8 @@ app.get('/homeListsIndoor', (req, res) => {
                     if (cost >= 1000 && cost <= 3000) return 'mid';
                     return 'high';
                 }
-                
+
+                // Filter items  for both priority and cost 
                 function filterItems() {
                     const searchTerm = searchBox.value.toLowerCase();
                     const selectedPriority = priorityFilter.value;
