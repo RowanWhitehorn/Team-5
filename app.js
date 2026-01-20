@@ -755,6 +755,10 @@ app.post('/editListOutdoor/:id', upload.single('image'), (req, res) => {
     res.redirect('/homeListsOutdoor');
 });
 
-app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
-});
+if (require.main === module) {
+    app.listen(port, () => {
+        console.log(`Server is running at http://localhost:${port}`);
+    });
+}
+
+module.exports = app;
