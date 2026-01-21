@@ -1,12 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const port = process.env.PORT || 3000;
 const fs = require('fs');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const app = express();
-const port = 3000;
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
