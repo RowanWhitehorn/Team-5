@@ -1,4 +1,5 @@
 const express = require('express');
+const helmet = require('helmet');
 const multer = require('multer');
 const path = require('path');
 const port = process.env.PORT || 3000;
@@ -7,10 +8,17 @@ const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const app = express();
+const rateLimit = require('express-rate-limit');
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
+app.use('/login', loginLimiter);
+
+app.use(helmet());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(session({ store: new FileStore({}), secret: 'change-this-secret', resave: false, saveUninitialized: false, cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 1000 * 60 * 60 * 24 } }));
 
 // Create uploads directory if it doesn't exist
 const uploadDir = path.join(__dirname, 'uploads');
@@ -19,18 +27,68 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        // Generate unique filename with timestamp
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
+const storage = multer.memoryStorage();
+
+const fileFilter = (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif'];
+    if (!allowed.includes(file.mimetype)) {
+        return cb(null, false);
     }
+    cb(null, true);
+};
+
+// const upload = multer({
+//   storage: storage,
+//   fileFilter: fileFilter,
+//   limits: { fileSize: 2 * 1024 * 1024 } // 2 MB
+// });
+const upload = multer({ storage, fileFilter });
+
+app.post('/upload', (req, res) => {
+  upload.single('file')(req, res, function (err) {
+    if (err) {
+      return res.status(400).send('Upload error');
+    }
+
+    // If no file was attached at all
+    if (!req.file && !req.headers['content-type']?.includes('multipart/form-data')) {
+      return res.status(400).send('No file uploaded');
+    }
+
+    // If file was attached but rejected by fileFilter
+    if (!req.file) {
+      return res.status(400).send('Invalid file type');
+    }
+
+    res.status(200).send('Upload successful');
+  });
 });
 
-const upload = multer({ storage: storage });
+module.exports = app;
+
+// Validation. 
+app.post('/addItem', (req, res) => {
+  const { name, description, priority, estimatedCost } = req.body;
+
+  // Reject missing required fields
+  if (!name || !description || !priority || !estimatedCost) {
+    return res.status(400).send('Missing required fields');
+  }
+
+  // Reject invalid priority (only allow 1–5)
+  const validPriorities = ['1', '2', '3', '4', '5'];
+  if (!validPriorities.includes(priority)) {
+    return res.status(400).send('Invalid priority value');
+  }
+
+  // Sanitize description to prevent script injection
+  const sanitizedDescription = description.replace(/<script.*?>.*?<\/script>/gi, '');
+
+  // Simulate saving item
+  res.status(200).send(`Item added: ${name}, ${sanitizedDescription}`);
+});
+
+
 
 // Session middleware - MUST come before static and routes
 app.use(session({
@@ -120,10 +178,18 @@ function saveUser(user) {
     }
 }
 
+function requireLogin(req, res, next) {
+  if (!req.session || !req.session.user) {
+    // If no session → redirect to login
+    return res.redirect('/');
+  }
+  next();
+}
+
 app.use(express.static('css'));
 app.use(express.static('uploads'));
 
-app.get('/home', (req, res) => {
+app.get('/home', requireLogin, (req, res) => {
     res.sendFile(__dirname + "/html/coverpage.html");
 });
 
@@ -193,7 +259,11 @@ app.post('/', (req, res) => {
 });
 
 app.get('/logout', (req, res) => {
-    req.session.destroy(() => {
+    req.session.destroy(err => {
+        if (err) { 
+            return res.status(500).send('Logout failed');
+        }
+        res.clearCookie('connect.sid');
         res.redirect('/');
     });
 });
