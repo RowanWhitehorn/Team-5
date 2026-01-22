@@ -50,3 +50,13 @@ h1 {
     text-align: center;
     text-decoration: none;
 }
+
+#clearAllBtn {
+    color: beige;
+    background-color: rgb(101, 69, 49);
+    border-color: rgb(79, 31, 31);
+    padding: 10px;
+    border: 2px solid rgb(101, 69, 49);
+    text-align: center;
+    text-decoration: none;
+}

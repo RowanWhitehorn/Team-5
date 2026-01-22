@@ -268,6 +268,15 @@ app.get('/logout', (req, res) => {
     });
 });
 
+app.get('/deleteAllIndoor', (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.redirect('/');
+    
+    user.layoutsIndoor = [];
+    saveUser(user);
+    res.redirect('/homeListsIndoor');
+});
+
 app.get('/homeListsIndoor', (req, res) => {
     const user = getCurrentUser(req);
     if (!user) return res.redirect('/');
@@ -330,6 +339,7 @@ app.get('/homeListsIndoor', (req, res) => {
             <a class="btn btn-primary m-2" id="homeBtn" href='/addListIndoor'>Add a List</a>
             <a class="btn btn-primary m-2" id="homeBtn" href='/home'>Back to Home</a>
             <a class="btn btn-primary m-2" id="homeBtn" href='/logout'>Logout</a>
+            <a class="btn btn-primary m-2" id="clearAllBtn" href='/deleteAllIndoor'>Delete All</a>
             <script>
                 const searchBox = document.getElementById('searchBox');
                 const priorityFilter = document.getElementById('priorityFilter');
@@ -401,6 +411,15 @@ app.get('/homeListsIndoor', (req, res) => {
         </html>`);
 });
 
+app.get('/deleteAlloutdoor', (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.redirect('/');
+    
+    user.layoutsOutdoor = [];
+    saveUser(user);
+    res.redirect('/homeListsOutdoor');
+});
+
 app.get('/homeListsOutdoor', (req, res) => {
     const user = getCurrentUser(req);
     if (!user) return res.redirect('/');
@@ -461,6 +480,8 @@ app.get('/homeListsOutdoor', (req, res) => {
             <a class="btn btn-primary m-2" id="homeBtn" href='/addListOutdoor'>Add a List</a>
             <a class="btn btn-primary m-2" id="homeBtn" href='/home'>Back to Home</a>
             <a class="btn btn-primary m-2" id="homeBtn" href='/logout'>Logout</a>
+            <a class="btn btn-primary m-2" id="clearAllBtn" href='/deleteAlloutdoor'>Delete All</a>
+
             <script>
                 const searchBox = document.getElementById('searchBox');
                 const priorityFilter = document.getElementById('priorityFilter');
