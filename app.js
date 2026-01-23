@@ -1,15 +1,21 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+
+const app = express();  // <-- app must be created before usage
+
 app.use('/css', express.static(path.join(__dirname, 'css')));
+
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 
-const app = express();
 const port = process.env.PORT || 3000;
+
+// rest of your code unchanged ...
+
 
 /* --------------------------------------------------
    Trust proxy (REQUIRED for Render sessions)
