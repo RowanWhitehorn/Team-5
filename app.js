@@ -1,3 +1,6 @@
+/* --------------------------------------------------
+   DONE BY: Saidah & Shah
+-------------------------------------------------- */
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -5,7 +8,7 @@ const fs = require('fs');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
-const app = express();  // <-- app must be created before usage
+const app = express(); 
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
@@ -31,6 +34,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+/* --------------------------------------------------
+   Session 
+-------------------------------------------------- */
 // Session middleware - MUST come before static and routes
 app.use(session({
     store: new FileStore({
@@ -44,6 +50,9 @@ app.use(session({
     cookie: { maxAge: 1000 * 60 * 60 * 24 }
 }));
 
+/* --------------------------------------------------
+   Static files
+-------------------------------------------------- */
 // Static files - after session
 app.use(express.static('css'));
 app.use(express.static('uploads'));
@@ -51,6 +60,9 @@ app.use(express.static('uploads'));
 // Simple in-memory users store (username must be unique)
 let users = [];
 
+/* --------------------------------------------------
+   Upload Image Setup 
+-------------------------------------------------- */
 // Ensure data/users directory exists and load existing users
 const usersDir = path.join(__dirname, 'data', 'users');
 if (!fs.existsSync(path.join(__dirname, 'data'))){
@@ -74,6 +86,9 @@ if (!fs.existsSync(usersDir)) {
     });
 }
 
+/* --------------------------------------------------
+   User Storage Functions
+-------------------------------------------------- */
 // Ensure each loaded user has per-user lists (empty by default)
 users.forEach(u => {
     if (!u.layoutsIndoor) u.layoutsIndoor = [];
@@ -118,10 +133,16 @@ function saveUser(user) {
     }
 }
 
+/* --------------------------------------------------
+   Home
+-------------------------------------------------- */
 app.get('/home', (req, res) => {
     res.sendFile(__dirname + "/html/coverpage.html");
 });
 
+/* --------------------------------------------------
+   Select Location (Indoor or Outdoor)
+-------------------------------------------------- */
 app.get('/selectLocation', (req, res) => {
     res.sendFile(__dirname + "/html/location.html")
 });
@@ -132,6 +153,9 @@ app.get('/', (req, res) => {
     res.sendFile(__dirname + "/html/login.html");
 });
 
+/* --------------------------------------------------
+   Create account
+-------------------------------------------------- */
 app.get('/createAccount', (req, res) => {
     if (req.session && req.session.user) return res.redirect('/home');
     res.sendFile(__dirname + "/html/createAccount.html");
@@ -162,6 +186,9 @@ app.post('/createAccount', (req, res) => {
     res.redirect('/');
 });
 
+/* --------------------------------------------------
+   Login Page and Handling
+-------------------------------------------------- */
 // Handle login (compare hashed password)
 app.post('/', (req, res) => {
     const { username, password } = req.body;
@@ -187,12 +214,18 @@ app.post('/', (req, res) => {
     });
 });
 
+/* --------------------------------------------------
+   Logout
+-------------------------------------------------- */
 app.get('/logout', (req, res) => {
     req.session.destroy(() => {
         res.redirect('/');
     });
 });
 
+/* --------------------------------------------------
+   Indoor Page
+-------------------------------------------------- */
 app.get('/homeListsIndoor', (req, res) => {
     const user = getCurrentUser(req);
     if (!user) return res.redirect('/');
@@ -319,6 +352,9 @@ app.get('/homeListsIndoor', (req, res) => {
         </html>`);
 });
 
+/* --------------------------------------------------
+   Outdoor Page
+-------------------------------------------------- */
 app.get('/homeListsOutdoor', (req, res) => {
     const user = getCurrentUser(req);
     if (!user) return res.redirect('/');
@@ -443,6 +479,9 @@ app.get('/homeListsOutdoor', (req, res) => {
         </html>`);
 });
 
+/* --------------------------------------------------
+   Add Indoor List
+-------------------------------------------------- */
 app.get('/addListIndoor', (req, res) => {
     res.sendFile(__dirname + "/html/addlistIndoor.html")
 });
@@ -466,6 +505,9 @@ app.post('/addListIndoor', upload.single('image'), (req, res) => {
     res.redirect('/homeListsIndoor');
 });
 
+/* --------------------------------------------------
+   Add Outdoor List
+-------------------------------------------------- */
 app.get('/addListOutdoor', (req, res) => {
     res.sendFile(__dirname + "/html/addlistOutdoor.html")
 });
@@ -489,6 +531,9 @@ app.post('/addListOutdoor', upload.single('image'), (req, res) => {
     res.redirect('/homeListsOutdoor');
 });
 
+/* --------------------------------------------------
+   Delete Indoor List
+-------------------------------------------------- */
 app.post('/deleteListIndoor/:id', (req, res) => {
     try {
         const sessionUser = getCurrentUser(req);
@@ -513,6 +558,9 @@ app.post('/deleteListIndoor/:id', (req, res) => {
     }
 });
 
+/* --------------------------------------------------
+   Delete Outdoor List
+-------------------------------------------------- */
 app.post('/deleteListOutdoor/:id', (req, res) => {
     try {
         const sessionUser = getCurrentUser(req);
@@ -537,6 +585,9 @@ app.post('/deleteListOutdoor/:id', (req, res) => {
     }
 });
 
+/* --------------------------------------------------
+   Edit Indoor List and Page
+-------------------------------------------------- */
 // Edit Book Form Page
 app.get('/editListIndoor/:id', (req, res) => {
     const id = parseInt(req.params.id);
@@ -629,6 +680,9 @@ app.post('/editListIndoor/:id', upload.single('image'), (req, res) => {
     res.redirect('/homeListsIndoor');
 });
 
+/* --------------------------------------------------
+   Edit Outdoor List and Page
+-------------------------------------------------- */
 app.get('/editListOutdoor/:id', (req, res) => {
     const id = parseInt(req.params.id);
     const sessionUser = getCurrentUser(req);
