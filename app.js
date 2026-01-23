@@ -57,6 +57,15 @@ app.use('/css', express.static('css'));
 app.use('/uploads', express.static('uploads'));
 
 /* --------------------------------------------------
+   Static files
+-------------------------------------------------- */
+app.use('/css', express.static('css'));
+app.use('/uploads', express.static('uploads'));
+
+// ADD THIS LINE HERE:
+app.use(express.static(path.join(__dirname, 'public')));
+
+/* --------------------------------------------------
    Uploads setup
 -------------------------------------------------- */
 const uploadDir = path.join(__dirname, 'uploads');
