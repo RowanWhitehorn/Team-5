@@ -723,7 +723,11 @@ app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
 });
 
-
+/* --------------------------------------------------
+   Trust proxy (REQUIRED for Render sessions) 
+   idk who put this but i put here bcs it seems important also this is not in my original code
+-------------------------------------------------- */
+app.set('trust proxy', 1);
 
 
 
