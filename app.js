@@ -14,9 +14,6 @@ const rateLimit = require('express-rate-limit');
 
 const port = process.env.PORT || 3000;
 
-// rest of your code unchanged ...
-
-
 /* --------------------------------------------------
    Trust proxy (REQUIRED for Render sessions)
 -------------------------------------------------- */
@@ -195,6 +192,13 @@ app.get('/home', requireLogin, (req, res) => {
 });
 
 /* --------------------------------------------------
+   Select Location (ADDED)
+-------------------------------------------------- */
+app.get('/selectLocation', requireLogin, (req, res) => {
+    res.sendFile(__dirname + '/html/location.html');
+});
+
+/* --------------------------------------------------
    Add Indoor
 -------------------------------------------------- */
 app.get('/addListIndoor', requireLogin, (req, res) => {
@@ -220,11 +224,41 @@ app.post('/addListIndoor', requireLogin, upload.single('image'), (req, res) => {
 });
 
 /* --------------------------------------------------
-   Indoor list
+   Add Outdoor (ADDED)
+-------------------------------------------------- */
+app.get('/addListOutdoor', requireLogin, (req, res) => {
+    res.sendFile(__dirname + '/html/addlistOutdoor.html');
+});
+
+app.post('/addListOutdoor', requireLogin, upload.single('image'), (req, res) => {
+    const user = getCurrentUser(req);
+    const id = user.layoutsOutdoor.length + 1;
+
+    user.layoutsOutdoor.push({
+        id,
+        itemOrfacility: req.body.itemOrfacility,
+        description: req.body.description,
+        comment: req.body.comment,
+        image: req.file ? req.file.filename : 'default.jpg',
+        priority: parseInt(req.body.priority),
+        estimatedCost: parseInt(req.body.estimatedCost)
+    });
+
+    saveUser(user);
+    res.redirect('/homeListsOutdoor');
+});
+
+/* --------------------------------------------------
+   Lists Data (Indoor & Outdoor)
 -------------------------------------------------- */
 app.get('/homeListsIndoor', requireLogin, (req, res) => {
     const user = getCurrentUser(req);
     res.send(JSON.stringify(user.layoutsIndoor));
+});
+
+app.get('/homeListsOutdoor', requireLogin, (req, res) => {
+    const user = getCurrentUser(req);
+    res.send(JSON.stringify(user.layoutsOutdoor));
 });
 
 /* --------------------------------------------------
