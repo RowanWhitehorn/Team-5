@@ -1,5 +1,9 @@
 const express = require('express');
 const session = require('express-session');
+const path = require('path');
+
+app.use('/css', express.static(path.join(__dirname, 'css')));
+
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
