@@ -13,7 +13,7 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 
 app.use('/login', loginLimiter);
 
-app.use(helmet());
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -27,7 +27,17 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // Configure multer for file uploads
-const storage = multer.memoryStorage();
+// Configure multer for file uploads
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
 
 const fileFilter = (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/gif'];
@@ -37,12 +47,11 @@ const fileFilter = (req, file, cb) => {
     cb(null, true);
 };
 
-// const upload = multer({
-//   storage: storage,
-//   fileFilter: fileFilter,
-//   limits: { fileSize: 2 * 1024 * 1024 } // 2 MB
-// });
-const upload = multer({ storage, fileFilter });
+const upload = multer({ 
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: { fileSize: 2 * 1024 * 1024 } // 2 MB
+});
 
 app.post('/upload', (req, res) => {
   upload.single('file')(req, res, function (err) {
@@ -100,8 +109,8 @@ app.use(session({
 }));
 
 // Static files - after session
-app.use(express.static('css'));
-app.use(express.static('uploads'));
+app.use('/css', express.static('css'));
+app.use('/uploads', express.static('uploads'));
 
 // Simple in-memory users store (username must be unique)
 let users = [];
@@ -295,10 +304,10 @@ app.get('/homeListsIndoor', (req, res) => {
             <b>Comment:</b>
             <p>${layouts[i].comment}</p>
             <b>Image:</b>
-            <p><img src="${layouts[i].image}" class="rounded" width="200" height="200"></p>
+            <p><img src="/uploads/${layouts[i].image}" class="rounded" width="200" height="200"></p>
             <a href="/editListIndoor/${layouts[i].id}">Edit</a>
             <p> </p>
-            <button type="button" onclick="deleteListIndoor(${layouts[i].id})">Delete</button>
+            <button type="button" class="delete-btn" data-id="${layouts[i].id}">Delete</button>
         </li>`;
     }
     
@@ -370,6 +379,14 @@ app.get('/homeListsIndoor', (req, res) => {
                     }
                 }
                 
+                // Add event listeners for delete buttons
+                document.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('delete-btn')) {
+                        const id = e.target.getAttribute('data-id');
+                        deleteListIndoor(id);
+                    }
+                });
+                
                 function getCostRange(cost) {
                     if (cost < 1000) return 'low';
                     if (cost >= 1000 && cost <= 3000) return 'mid';
@@ -438,10 +455,10 @@ app.get('/homeListsOutdoor', (req, res) => {
             <b>Comment:</b>
             <p>${layouts[i].comment}</p>
             <b>Image:</b>
-            <p><img src="${layouts[i].image}" class="rounded" width="200" height="200"></p>
+            <p><img src="/uploads/${layouts[i].image}" class="rounded" width="200" height="200"></p>
             <a href="/editListOutdoor/${layouts[i].id}">Edit</a>
             <p> </p>
-            <button type="button" onclick="deleteListOutdoor(${layouts[i].id})">Delete</button>
+            <button type="button" class="delete-btn-outdoor" data-id="${layouts[i].id}">Delete</button>
         </li>`;
     }
     res.send(`
@@ -483,6 +500,49 @@ app.get('/homeListsOutdoor', (req, res) => {
             <a class="btn btn-primary m-2" id="clearAllBtn" href='/deleteAlloutdoor'>Delete All</a>
 
             <script>
+                function deleteListOutdoor(id) {
+                    if (confirm('Are you sure you want to delete this list?')) {
+                        console.log('Deleting outdoor item with id:', id);
+                        fetch('/deleteListOutdoor/' + id, { 
+                            method: 'POST', 
+                            credentials: 'include',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                            .then(res => {
+                                console.log('Response status:', res.status);
+                                return res.json();
+                            })
+                            .then(data => {
+                                console.log('Response data:', data);
+                                if (data.success) {
+                                    const element = document.querySelector('li[data-id="' + id + '"]');
+                                    console.log('Found element:', element);
+                                    if (element) {
+                                        element.remove();
+                                        console.log('Item removed');
+                                    }
+                                } else {
+                                    alert('Failed to delete item');
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Delete failed:', err);
+                                alert('Error deleting item');
+                            });
+                    }
+                }
+                
+                // Add event listeners for delete buttons
+                document.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('delete-btn-outdoor')) {
+                        const id = e.target.getAttribute('data-id');
+                        deleteListOutdoor(id);
+                    }
+                });
+
+                // Filter functionality
                 const searchBox = document.getElementById('searchBox');
                 const priorityFilter = document.getElementById('priorityFilter');
                 const costFilter = document.getElementById('costFilter');
@@ -525,29 +585,6 @@ app.get('/homeListsOutdoor', (req, res) => {
                 searchBox.addEventListener('keyup', filterItems);
                 priorityFilter.addEventListener('change', filterItems);
                 costFilter.addEventListener('change', filterItems);
-                
-                function deleteListOutdoor(id) {
-                    if (confirm('Are you sure you want to delete this list?')) {
-                        console.log('Deleting outdoor item with id:', id);
-                        fetch('/deleteListOutdoor/' + id, { method: 'POST', credentials: 'include' })
-                            .then(res => {
-                                console.log('Response status:', res.status);
-                                return res.json();
-                            })
-                            .then(data => {
-                                console.log('Response data:', data);
-                                if (data.success) {
-                                    const element = document.querySelector('li[data-id="' + id + '"]');
-                                    console.log('Found element:', element);
-                                    if (element) {
-                                        element.remove();
-                                        console.log('Item removed');
-                                    }
-                                }
-                            })
-                            .catch(err => console.error('Delete failed:', err));
-                    }
-                }
             </script>
         </body>
         </html>`);
