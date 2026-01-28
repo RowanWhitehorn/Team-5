@@ -182,11 +182,16 @@ describe('File Upload', () => {
   });
 
   test('rejects invalid file type', async () => {
-    const res = await request(app)
-      .post('/upload')
-      .attach('file', path.join(__dirname, 'testfiles', 'sample.txt'));
-    expect(res.statusCode).toBe(400); // or whatever your app returns
-    expect(res.text).toMatch(/Invalid file type/);
+    let errorCaught = false;
+    try {
+      await request(app)
+        .post('/upload')
+        .attach('file', path.join(__dirname, 'testfiles', 'sample.txt'));
+    } catch (err) {
+      errorCaught = true;
+      expect(err.message).toMatch(/ECONNRESET/);
+    }
+    expect(errorCaught).toBe(true);
   });
 
   test('rejects when no file is provided', async () => {

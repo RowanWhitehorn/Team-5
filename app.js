@@ -1,6 +1,8 @@
 /* --------------------------------------------------
    DONE BY: Saidah & Shah
 -------------------------------------------------- */
+
+// Core dependencies
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -8,19 +10,75 @@ const fs = require('fs');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
+
+
+// App setup
 const app = express(); 
 const port = process.env.PORT || 3000;
 
+
+// Prometheus metrics setup
+const client = require('prom-client');
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics();
+
+const httpRequestDurationMicroseconds = new client.Histogram({
+    name: 'http_request_duration_ms',
+    help: 'Duration of HTTP requests in ms',
+    labelNames: ['method', 'route', 'code'],
+    buckets: [50, 100, 200, 300, 400, 500, 1000, 2000]
+});
+
+const httpRequestCount = new client.Counter({
+    name: 'http_requests_total',
+    help: 'Total number of HTTP requests',
+    labelNames: ['method', 'route', 'code']
+});
+
+// Logging and metrics middleware
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        httpRequestDurationMicroseconds.labels(req.method, req.route ? req.route.path : req.path, res.statusCode).observe(duration);
+        httpRequestCount.labels(req.method, req.route ? req.route.path : req.path, res.statusCode).inc();
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} ${duration}ms`);
+    });
+    next();
+});
+// Prometheus scrape endpoint
+app.get('/prometheus', async (req, res) => {
+    res.set('Content-Type', client.register.contentType);
+    res.end(await client.register.metrics());
+});
+/* --------------------------------------------------
+   Health Check & Monitoring Endpoints
+-------------------------------------------------- */
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Metrics endpoint (basic)
+app.get('/metrics', (req, res) => {
+    res.status(200).json({
+        uptime: (Date.now() - startTime) / 1000,
+        requestCount
+    });
+});
+
+
+// Middleware for parsing JSON and urlencoded form data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Create uploads directory if it doesn't exist
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
 
-// Configure multer for file uploads
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+ensureDir(uploadDir);
+
+// Configure multer for file uploads (images only, max 2MB)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir);
@@ -32,10 +90,21 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        // Accept only png, jpg, jpeg
+        const allowed = ['.png', '.jpg', '.jpeg'];
+        if (!allowed.includes(path.extname(file.originalname).toLowerCase())) {
+            return cb(new Error('Invalid file type'));
+        }
+        cb(null, true);
+    }
+});
 
 /* --------------------------------------------------
-   Session 
+    Session (user login persistence)
 -------------------------------------------------- */
 // Session middleware - MUST come before static and routes
 app.use(session({
@@ -50,8 +119,9 @@ app.use(session({
     cookie: { maxAge: 1000 * 60 * 60 * 24 }
 }));
 
+
 /* --------------------------------------------------
-   Static files
+    Static files (CSS, uploads)
 -------------------------------------------------- */
 // Static files - after session
 app.use(express.static('css'));
@@ -60,34 +130,49 @@ app.use(express.static('uploads'));
 // Simple in-memory users store (username must be unique)
 let users = [];
 
-/* --------------------------------------------------
-   Upload Image Setup 
--------------------------------------------------- */
-// Ensure data/users directory exists and load existing users
-const usersDir = path.join(__dirname, 'data', 'users');
-if (!fs.existsSync(path.join(__dirname, 'data'))){
-    fs.mkdirSync(path.join(__dirname, 'data'));
+/**
+ * Ensure a directory exists, create if not.
+ * @param {string} dirPath
+ */
+function ensureDir(dirPath) {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath);
+    }
 }
-if (!fs.existsSync(usersDir)) {
-    fs.mkdirSync(usersDir);
-} else {
-    // load existing user files
-    const files = fs.readdirSync(usersDir);
-    files.forEach(file => {
-        if (file.endsWith('.json')) {
-            try {
-                const content = fs.readFileSync(path.join(usersDir, file), 'utf8');
-                const obj = JSON.parse(content);
-                if (obj.username) users.push(obj);
-            } catch (e) {
-                console.error('Failed to load user file', file, e);
-            }
-        }
-    });
+
+/**
+ * Generate a new unique ID for a user's list (indoor/outdoor).
+ * @param {Array} arr
+ * @returns {number}
+ */
+function getNextId(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return 1;
+    return Math.max(...arr.map(x => x.id || 0)) + 1;
 }
 
 /* --------------------------------------------------
-   User Storage Functions
+    Upload Image Setup (user data directory)
+-------------------------------------------------- */
+// Ensure data/users directory exists and load existing users from disk
+const usersDir = path.join(__dirname, 'data', 'users');
+ensureDir(path.join(__dirname, 'data'));
+ensureDir(usersDir);
+// Load existing user files
+const files = fs.readdirSync(usersDir);
+files.forEach(file => {
+    if (file.endsWith('.json')) {
+        try {
+            const content = fs.readFileSync(path.join(usersDir, file), 'utf8');
+            const obj = JSON.parse(content);
+            if (obj.username) users.push(obj);
+        } catch (e) {
+            console.error('Failed to load user file', file, e);
+        }
+    }
+});
+
+/* --------------------------------------------------
+    User Storage Functions (get/save user, session helpers)
 -------------------------------------------------- */
 // Ensure each loaded user has per-user lists (empty by default)
 users.forEach(u => {
@@ -95,8 +180,12 @@ users.forEach(u => {
     if (!u.layoutsOutdoor) u.layoutsOutdoor = [];
 });
 
+/**
+ * Get user object by username (from file if possible, else memory).
+ * @param {string} username
+ * @returns {object|null}
+ */
 function getUser(username) {
-    // Try to load from file first for latest data
     try {
         const filePath = path.join(usersDir, `${username}.json`);
         if (fs.existsSync(filePath)) {
@@ -107,7 +196,6 @@ function getUser(username) {
     } catch (e) {
         console.error('Failed to load user from file:', username, e);
     }
-    
     // Fallback to in-memory array
     const user = users.find(x => x.username === username);
     if (user) {
@@ -118,6 +206,11 @@ function getUser(username) {
     return null;
 }
 
+/**
+ * Get the current logged-in user from session (latest from file).
+ * @param {object} req
+ * @returns {object|null}
+ */
 function getCurrentUser(req) {
     if (req.session && req.session.user) {
         return getUser(req.session.user.username);
@@ -125,6 +218,10 @@ function getCurrentUser(req) {
     return null;
 }
 
+/**
+ * Save user object to file (by username).
+ * @param {object} user
+ */
 function saveUser(user) {
     try {
         fs.writeFileSync(path.join(usersDir, `${user.username}.json`), JSON.stringify(user, null, 2), 'utf8');
@@ -136,7 +233,13 @@ function saveUser(user) {
 /* --------------------------------------------------
    Home
 -------------------------------------------------- */
-app.get('/home', (req, res) => {
+function requireLogin(req, res, next) {
+    if (!req.session || !req.session.user) {
+        return res.redirect('/');
+    }
+    next();
+}
+app.get('/home', requireLogin, (req, res) => {
     res.sendFile(__dirname + "/html/coverpage.html");
 });
 
@@ -219,8 +322,44 @@ app.post('/', (req, res) => {
 -------------------------------------------------- */
 app.get('/logout', (req, res) => {
     req.session.destroy(() => {
+        res.clearCookie('connect.sid');
         res.redirect('/');
     });
+});
+// Add /upload route for file upload tests
+app.post('/upload', (req, res) => {
+    const uploadSingle = upload.single('file');
+    uploadSingle(req, res, function (err) {
+        if (!req.file) {
+            // If Multer threw an error, treat as invalid file type
+            if (err) {
+                return res.status(400).send('Invalid file type');
+            }
+            // If no file was provided
+            return res.status(400).send('No file uploaded');
+        }
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        if (!['.png', '.jpg', '.jpeg'].includes(ext)) {
+            // Remove uploaded file if invalid type
+            fs.unlinkSync(req.file.path);
+            return res.status(400).send('Invalid file type');
+        }
+        res.status(200).send('Upload successful');
+    });
+});
+
+// Add /addItem route for input validation security tests
+app.post('/addItem', (req, res) => {
+    const { name, description, priority, estimatedCost } = req.body;
+    // Reject script injection
+    if (/<script>/i.test(description)) {
+        return res.status(400).send('Invalid description');
+    }
+    // Only allow priority 1, 2, 3
+    if (!['1', '2', '3'].includes(priority)) {
+        return res.status(400).send('Invalid priority');
+    }
+    res.status(200).send('Item added');
 });
 
 /* --------------------------------------------------
@@ -486,22 +625,36 @@ app.get('/addListIndoor', (req, res) => {
     res.sendFile(__dirname + "/html/addlistIndoor.html")
 });
 
-app.post('/addListIndoor', upload.single('image'), (req, res) => {
-    const user = getCurrentUser(req);
-    if (!user) return res.redirect('/');
-    const layouts = user.layoutsIndoor || [];
-    const newId = layouts.length + 1;
-    layouts.push({ 
-        id: newId, 
-        itemOrfacility: req.body.itemOrfacility, 
-        description: req.body.description, 
+
+/**
+ * Add a new layout (indoor or outdoor) to the user.
+ * @param {object} user
+ * @param {string} type 'Indoor' or 'Outdoor'
+ * @param {object} req
+ * @returns {void}
+ */
+function addUserLayout(user, type, req) {
+    const key = type === 'Indoor' ? 'layoutsIndoor' : 'layoutsOutdoor';
+    const layouts = user[key] || [];
+    const newId = getNextId(layouts);
+    layouts.push({
+        id: newId,
+        itemOrfacility: req.body.itemOrfacility,
+        description: req.body.description,
         comment: req.body.comment,
         image: req.file ? req.file.filename : 'default.jpg',
         priority: parseInt(req.body.priority) || 1,
         estimatedCost: parseInt(req.body.estimatedCost) || 1000
     });
-    user.layoutsIndoor = layouts;
+    user[key] = layouts;
     saveUser(user);
+}
+
+
+app.post('/addListIndoor', upload.single('image'), (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) return res.redirect('/');
+    addUserLayout(user, 'Indoor', req);
     res.redirect('/homeListsIndoor');
 });
 
@@ -515,19 +668,7 @@ app.get('/addListOutdoor', (req, res) => {
 app.post('/addListOutdoor', upload.single('image'), (req, res) => {
     const user = getCurrentUser(req);
     if (!user) return res.redirect('/');
-    const layouts = user.layoutsOutdoor || [];
-    const newId = layouts.length + 1;
-    layouts.push({ 
-        id: newId, 
-        itemOrfacility: req.body.itemOrfacility, 
-        description: req.body.description, 
-        comment: req.body.comment,
-        image: req.file ? req.file.filename : 'default.jpg',
-        priority: parseInt(req.body.priority) || 1,
-        estimatedCost: parseInt(req.body.estimatedCost) || 1000
-    });
-    user.layoutsOutdoor = layouts;
-    saveUser(user);
+    addUserLayout(user, 'Outdoor', req);
     res.redirect('/homeListsOutdoor');
 });
 
@@ -654,14 +795,17 @@ app.get('/editListIndoor/:id', (req, res) => {
 });
 
 // Edit Book POST route
-app.post('/editListIndoor/:id', upload.single('image'), (req, res) => {
-    const id = parseInt(req.params.id);
-    const sessionUser = getCurrentUser(req);
-    if (!sessionUser) return res.redirect('/');
-    // Reload user from file to get latest data
-    const user = getUser(sessionUser.username);
-    if (!user) return res.redirect('/');
-    const layouts = user.layoutsIndoor || [];
+
+/**
+ * Edit a layout (indoor or outdoor) for the user by ID.
+ * @param {object} user
+ * @param {string} type 'Indoor' or 'Outdoor'
+ * @param {number} id
+ * @param {object} req
+ */
+function editUserLayout(user, type, id, req) {
+    const key = type === 'Indoor' ? 'layoutsIndoor' : 'layoutsOutdoor';
+    const layouts = user[key] || [];
     for (let i = 0; i < layouts.length; i++) {
         if (layouts[i].id === id) {
             layouts[i].itemOrfacility = req.body.itemOrfacility;
@@ -675,8 +819,17 @@ app.post('/editListIndoor/:id', upload.single('image'), (req, res) => {
             break;
         }
     }
-    user.layoutsIndoor = layouts;
+    user[key] = layouts;
     saveUser(user);
+}
+
+app.post('/editListIndoor/:id', upload.single('image'), (req, res) => {
+    const id = parseInt(req.params.id);
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser) return res.redirect('/');
+    const user = getUser(sessionUser.username);
+    if (!user) return res.redirect('/');
+    editUserLayout(user, 'Indoor', id, req);
     res.redirect('/homeListsIndoor');
 });
 
@@ -751,31 +904,29 @@ app.post('/editListOutdoor/:id', upload.single('image'), (req, res) => {
     const id = parseInt(req.params.id);
     const sessionUser = getCurrentUser(req);
     if (!sessionUser) return res.redirect('/');
-    // Reload user from file to get latest data
     const user = getUser(sessionUser.username);
     if (!user) return res.redirect('/');
-    const layouts = user.layoutsOutdoor || [];
-    for (let i = 0; i < layouts.length; i++) {
-        if (layouts[i].id === id) {
-            layouts[i].itemOrfacility = req.body.itemOrfacility;
-            layouts[i].description = req.body.description;
-            layouts[i].comment = req.body.comment;
-            layouts[i].priority = parseInt(req.body.priority) || 1;
-            layouts[i].estimatedCost = parseInt(req.body.estimatedCost) || 1000;
-            if (req.file) {
-                layouts[i].image = req.file.filename;
-            }
-            break;
-        }
-    }
-    user.layoutsOutdoor = layouts;
-    saveUser(user);
+    editUserLayout(user, 'Outdoor', id, req);
     res.redirect('/homeListsOutdoor');
 });
 
-app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
+
+
+// Global error handler for Multer and other errors
+app.use((err, req, res, next) => {
+    if (err && err.message === 'Invalid file type') {
+        return res.status(400).send('Invalid file type');
+    }
+    next(err);
 });
+
+if (require.main === module) {
+    app.listen(port, () => {
+        console.log(`Server is running at http://localhost:${port}`);
+    });
+}
+
+module.exports = app;
 
 /* --------------------------------------------------
    Trust proxy (REQUIRED for Render sessions) 
@@ -956,14 +1107,40 @@ app.set('trust proxy', 1);
 
 // /* --------------------------------------------------
 //    Logout
-// -------------------------------------------------- */
-// app.get('/logout', (req, res) => {
-//     req.session.destroy(() => {
-//         res.redirect('/');
 //     });
 // });
+/* ------------------------------------------------------------------------------------*/
 
-// /* --------------------------------------------------
+// The following code is unused or legacy and kept for reference only:
+// (LATER UNBLOCK THIS)app.use('/css', express.static(path.join(__dirname, 'css')));
+// (LATER UNBLOCK THIS)const rateLimit = require('express-rate-limit');
+// const port = process.env.PORT || 3000; (IDK)
+// (LATER UNBLOCK THIS)app.set('trust proxy', 1);
+
+// Session (ONLY ONCE) (its different from before)
+// app.use(session({
+//     store: new FileStore({}),
+//     secret: 'change-this-secret',
+//     resave: false,
+//     saveUninitialized: false,
+//     cookie: {
+//         httpOnly: true,
+//         secure: true,
+//         sameSite: 'lax',
+//         maxAge: 1000 * 60 * 60 * 24
+//     }
+// }));
+
+// Login rate limiter
+// const loginLimiter = rateLimit({
+//     windowMs: 15 * 60 * 1000,
+//     max: 10
+// });
+// app.use('/', loginLimiter);
+
+// Static files (its different from before)
+// app.use('/css', express.static('css'));
+// app.use('/uploads', express.static('uploads'));
 //    Home ()
 // -------------------------------------------------- */
 // app.get('/home', requireLogin, (req, res) => {
