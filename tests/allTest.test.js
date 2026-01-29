@@ -21,7 +21,7 @@ describe('Authentication pages', () => {
 });
 
 // ============================================
-// Authentication Security tests
+// Authentication Security tests (Alan)
 // ============================================
 describe('Authentication Security', () => {
   test('rejects weak password on signup', async () => {
@@ -141,7 +141,7 @@ describe('Login', () => {
 });
 
 // ============================================
-// Protected routes tests
+// Protected routes tests (Alan)
 // ============================================
 describe('Protected routes', () => {
 
@@ -153,7 +153,7 @@ describe('Protected routes', () => {
 });
 
 // ============================================
-// Session Security tests
+// Session Security tests (Alan)
 // ============================================
 describe('Session Security', () => {
   test('logout destroys session', async () => {
@@ -170,7 +170,7 @@ describe('Session Security', () => {
 });
 
 // ============================================
-// File Upload tests
+// File Upload tests (Alan)
 // ============================================
 describe('File Upload', () => {
   test('uploads a valid image file', async () => {
@@ -202,7 +202,7 @@ describe('File Upload', () => {
 });
 
 // ============================================
-// Input Validation Security tests
+// Input Validation Security tests (Alan)
 // ============================================
 describe('Input Validation Security', () => {
   test('rejects script injection in description', async () => {
