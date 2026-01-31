@@ -1,4 +1,4 @@
-# DONE BY: Shah &
+# DONE BY: Shah & PinHao
 # Multi-stage build for optimized production image
 FROM node:18-alpine AS builder
 
