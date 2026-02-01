@@ -1,0 +1,26 @@
+{
+  "username": "Austin",
+  "email": "24047297@myrp.edu.sg",
+  "password": "$2a$10$AvYI7bwmsYncpAnXl3WhbOiKQYGDuyhVfDFdAbGwKfTV/X01vPNgO",
+  "layoutsIndoor": [
+    {
+      "id": 1,
+      "itemOrfacility": "ball",
+      "description": "big sweat ",
+      "comment": "nil",
+      "image": "1769163876092-483296035.jpg",
+      "priority": 1,
+      "estimatedCost": 67000
+    },
+    {
+      "id": 2,
+      "itemOrfacility": "ball",
+      "description": "big sweat ",
+      "comment": "nil",
+      "image": "1769163919382-69282955.jpg",
+      "priority": 1,
+      "estimatedCost": 900
+    }
+  ],
+  "layoutsOutdoor": []
+}

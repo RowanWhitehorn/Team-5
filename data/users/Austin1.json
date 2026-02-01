@@ -1,0 +1,17 @@
+{
+  "username": "Austin1",
+  "email": "emmanuelaghasiefo05@gmail.com",
+  "password": "$2a$10$XhDamFhHT5SXh4tV48ljQO7f9/uAeb.U2Fte7TtFEAYUQPw9Q2L0u",
+  "layoutsIndoor": [
+    {
+      "id": 1,
+      "itemOrfacility": "ball",
+      "description": "big sweat ",
+      "comment": "nil",
+      "image": "1769163831811-899310307.jpg",
+      "priority": 1,
+      "estimatedCost": 7000
+    }
+  ],
+  "layoutsOutdoor": []
+}
