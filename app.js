@@ -1,6 +1,7 @@
 /* --------------------------------------------------
    DONE BY: Saidah & Shah (SQLite Version - No PostgreSQL)
    Compatible with Express 5.x and your existing dependencies
+   REFACTORED: Improved code organization and readability
 -------------------------------------------------- */
 
 // Core dependencies
@@ -18,9 +19,23 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 /* --------------------------------------------------
-   Database Setup (SQLite - Simple & Works Everywhere)
+   CONSTANTS
 -------------------------------------------------- */
-const db = new sqlite3.Database('./database.db', (err) => {
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const SESSION_DIR = './sessions';
+const DATABASE_PATH = './database.db';
+const SESSION_SECRET = 'change-this-secret';
+const SESSION_TTL_DAYS = 30;
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const ALLOWED_FILE_TYPES = ['.png', '.jpg', '.jpeg'];
+const PASSWORD_MIN_LENGTH = 6;
+const PRIORITY_MIN = 1;
+const PRIORITY_MAX = 5;
+
+/* --------------------------------------------------
+   Database Setup & Initialization
+-------------------------------------------------- */
+const db = new sqlite3.Database(DATABASE_PATH, (err) => {
     if (err) {
         console.error('Database connection error:', err);
     } else {
@@ -29,62 +44,72 @@ const db = new sqlite3.Database('./database.db', (err) => {
 });
 
 // Initialize database tables
-db.serialize(() => {
-    db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT NOT NULL,
-            password TEXT NOT NULL
-        )
-    `);
+const initializeDatabase = () => {
+    db.serialize(() => {
+        // Users table
+        db.run(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT NOT NULL,
+                password TEXT NOT NULL
+            )
+        `);
 
-    db.run(`
-        CREATE TABLE IF NOT EXISTS items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            type TEXT NOT NULL,
-            itemOrfacility TEXT,
-            description TEXT,
-            comment TEXT,
-            image TEXT,
-            priority INTEGER,
-            estimatedCost INTEGER,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    `);
+        // Items table
+        db.run(`
+            CREATE TABLE IF NOT EXISTS items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                type TEXT NOT NULL,
+                itemOrfacility TEXT,
+                description TEXT,
+                comment TEXT,
+                image TEXT,
+                priority INTEGER,
+                estimatedCost INTEGER,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        `);
 
-    console.log("Database tables initialized");
-});
+        console.log("Database tables initialized");
+    });
+};
+
+initializeDatabase();
 
 /* --------------------------------------------------
-   Metrics & Health
+   Metrics & Health Monitoring
 -------------------------------------------------- */
 const client = require('prom-client');
 const collectDefaultMetrics = client.collectDefaultMetrics;
 collectDefaultMetrics();
 
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+    res.status(200).json({ 
+        status: 'ok', 
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
 });
 
 /* --------------------------------------------------
-   Middleware
+   Middleware Configuration
 -------------------------------------------------- */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session Middleware (Using session-file-store to match your dependencies)
+// Session configuration
 app.use(session({
     store: new FileStore({
-        path: './sessions',
-        ttl: 30 * 24 * 60 * 60 // 30 days in seconds
+        path: SESSION_DIR,
+        ttl: SESSION_TTL_DAYS * 24 * 60 * 60
     }),
-    secret: 'change-this-secret',
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
-        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+        maxAge: SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
     }
 }));
 
@@ -94,16 +119,16 @@ app.use(express.static('uploads'));
 app.use(express.static('html'));
 
 /* --------------------------------------------------
-   File Uploads (Multer)
+   File Upload Configuration (Multer)
 -------------------------------------------------- */
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
+// Ensure upload directory exists
+if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR);
 }
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, uploadDir);
+        cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -113,10 +138,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 2 * 1024 * 1024 },
+    limits: { fileSize: MAX_FILE_SIZE },
     fileFilter: (req, file, cb) => {
-        const allowed = ['.png', '.jpg', '.jpeg'];
-        if (!allowed.includes(path.extname(file.originalname).toLowerCase())) {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (!ALLOWED_FILE_TYPES.includes(ext)) {
             return cb(new Error('Invalid file type'));
         }
         cb(null, true);
@@ -124,8 +149,12 @@ const upload = multer({
 });
 
 /* --------------------------------------------------
-   Helper Functions
+   Helper Functions & Middleware
 -------------------------------------------------- */
+
+/**
+ * Middleware to require user authentication
+ */
 function requireLogin(req, res, next) {
     if (!req.session || !req.session.userId) {
         return res.redirect('/');
@@ -133,104 +162,33 @@ function requireLogin(req, res, next) {
     next();
 }
 
-/* --------------------------------------------------
-   Auth Routes
--------------------------------------------------- */
+/**
+ * Check if user is authenticated (for API endpoints)
+ */
+function isAuthenticated(req) {
+    return req.session && req.session.userId;
+}
 
-// Login Page
-app.get('/', (req, res) => {
-    if (req.session && req.session.userId) return res.redirect('/home');
-    res.sendFile(__dirname + "/html/login.html");
-});
+/**
+ * Hash password using bcrypt
+ */
+function hashPassword(password) {
+    return bcrypt.hashSync(password, 10);
+}
 
-// Handle Login
-app.post('/', async (req, res) => {
-    const { username, password } = req.body;
-    
-    db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
-        if (err) {
-            console.error(err);
-            return res.send('Login error');
-        }
-        
-        if (user && bcrypt.compareSync(password, user.password)) {
-            req.session.userId = user.id;
-            req.session.username = user.username;
-            return res.redirect('/home');
-        }
-        
-        res.send('<p>Invalid username or password.</p><a href="/">Back</a>');
-    });
-});
+/**
+ * Verify password against hash
+ */
+function verifyPassword(password, hash) {
+    return bcrypt.compareSync(password, hash);
+}
 
-// Alias route for /login (for tests)
-app.post('/login', (req, res) => {
-    app._router.handle(req, res);
-});
-
-// Create Account Page
-app.get('/createAccount', (req, res) => {
-    res.sendFile(__dirname + "/html/createAccount.html");
-});
-
-// Handle Create Account
-app.post('/createAccount', async (req, res) => {
-    const { username, email, password, confirmPassword } = req.body;
-    
-    if (!username || !email || !password || !confirmPassword) {
-        return res.send('<p>All fields are required.</p><a href="/createAccount">Back</a>');
-    }
-    
-    if (password.length < 6) {
-        return res.send('<p>Password must be at least 6 characters</p><a href="/createAccount">Back</a>');
-    }
-    
-    if (password !== confirmPassword) {
-        return res.send('<p>Passwords do not match.</p><a href="/createAccount">Back</a>');
-    }
-
-    const hashed = bcrypt.hashSync(password, 10);
-    
-    db.run(
-        'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-        [username, email, hashed],
-        function(err) {
-            if (err) {
-                console.error(err);
-                if (err.message.includes('UNIQUE')) {
-                    return res.send('<p>Username already taken.</p><a href="/createAccount">Back</a>');
-                }
-                return res.send('Error creating account');
-            }
-            res.redirect('/');
-        }
-    );
-});
-
-// Logout
-app.get('/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/');
-});
-
-/* --------------------------------------------------
-   Main App Routes
--------------------------------------------------- */
-
-app.get('/home', requireLogin, (req, res) => {
-    res.sendFile(__dirname + "/html/coverpage.html");
-});
-
-app.get('/selectLocation', (req, res) => {
-    res.sendFile(__dirname + "/html/location.html");
-});
-
-// Helper to generate list HTML
+/**
+ * Generate HTML for item lists (Indoor/Outdoor)
+ */
 function generateListHTML(layouts, title, addLink, backLink, deleteRoute, editRoute) {
-    let listItems = '';
-    layouts.forEach(item => {
-        listItems += 
-        `<li data-item="${item.itemOrfacility}" data-priority="${item.priority}" data-cost="${item.estimatedCost}" data-id="${item.id}">
+    const listItems = layouts.map(item => `
+        <li data-item="${item.itemOrfacility}" data-priority="${item.priority}" data-cost="${item.estimatedCost}" data-id="${item.id}">
             <h2><b>${item.itemOrfacility}</b></h2>
             <b>Priority Level:</b> <p>${item.priority}</p>
             <b>Estimated Cost:</b> <p>$${item.estimatedCost}</p>
@@ -240,8 +198,10 @@ function generateListHTML(layouts, title, addLink, backLink, deleteRoute, editRo
             <a href="/${editRoute}/${item.id}">Edit</a>
             <p> </p>
             <button type="button" onclick="deleteItem('${deleteRoute}', ${item.id})">Delete</button>
-        </li>`;
-    });
+        </li>
+    `).join('');
+
+    const cssFile = title === 'Indoor' ? 'homeListIndoor' : 'homeListOutdoor';
 
     return `
         <!doctype html>
@@ -249,20 +209,36 @@ function generateListHTML(layouts, title, addLink, backLink, deleteRoute, editRo
         <head>
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <link rel="stylesheet" href="/${title === 'Indoor' ? 'homeListIndoor' : 'homeListOutdoor'}.css">
+            <link rel="stylesheet" href="/${cssFile}.css">
             <title>Home List</title>
         </head>
         <body>
             <div class="container">
                 <h1>${title} Home List</h1>
                 <div style="margin-bottom: 15px;">
-                    <input type="text" id="searchBox" placeholder="Search..." style="padding: 8px;">
+                    <div>
+                        <label for="priorityFilter" style="margin-right: 10px; font-weight: bold;">Filter by Priority:</label>
+                        <select id="priorityFilter" style="padding: 8px; margin-right: 20px; font-size: 13px;">
+                            <option value="">All Priorities</option>
+                            <option value="1">Priority 1 (Most Priority)</option>
+                            <option value="2">Priority 2 (Medium Priority)</option>
+                            <option value="3">Priority 3 (Least Priority)</option>
+                        </select>
+                        <label for="costFilter" style="margin-right: 10px; font-weight: bold;">Filter by Cost:</label>
+                        <select id="costFilter" style="padding: 8px; font-size: 13px;">
+                            <option value="">All Costs</option>
+                            <option value="1000">< $1000</option>
+                            <option value="3000">$1000 - $3000</option>
+                            <option value="10000">> $3000</option>
+                        </select>
+                        <input type="text" id="searchBox" placeholder="Search items or facilities..." style="padding: 8px; width: 300px; font-size: 13px; margin-left: 23px;">
+                    </div>
                 </div>
             </div>
             <ul style="margin-top: 0px;" id="itemList">${listItems}</ul>
-            <a class="btn btn-primary m-2" href='/${addLink}'>Add a List</a>
-            <a class="btn btn-primary m-2" href='/home'>Back to Home</a>
-            <a class="btn btn-primary m-2" href='/logout'>Logout</a>
+            <a class="btn btn-primary m-2" id="homeBtn" href='/${addLink}'>Add a List</a>
+            <a class="btn btn-primary m-2" id="homeBtn" href='/home'>Back to Home</a>
+            <a class="btn btn-primary m-2" id="homeBtn" href='/logout'>Logout</a>
             <script>
                 function deleteItem(route, id) {
                     if (confirm('Delete this item?')) {
@@ -277,36 +253,188 @@ function generateListHTML(layouts, title, addLink, backLink, deleteRoute, editRo
 }
 
 /* --------------------------------------------------
-   Indoor Routes
+   Authentication Routes
 -------------------------------------------------- */
+
+/**
+ * GET / - Login page or redirect to home if logged in
+ */
+app.get('/', (req, res) => {
+    if (isAuthenticated(req)) {
+        return res.redirect('/home');
+    }
+    res.sendFile(path.join(__dirname, 'html', 'login.html'));
+});
+
+/**
+ * POST / - Handle login submission
+ */
+app.post('/', async (req, res) => {
+    const { username, password } = req.body;
+    
+    db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
+        if (err) {
+            console.error('Login query error:', err);
+            return res.send('Login error');
+        }
+        
+        if (user && verifyPassword(password, user.password)) {
+            req.session.userId = user.id;
+            req.session.username = user.username;
+            return res.redirect('/home');
+        }
+        
+        res.send('<p>Invalid username or password.</p><a href="/">Back</a>');
+    });
+});
+
+/**
+ * POST /login - Alias route for login (for tests)
+ */
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    
+    db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
+        if (err) {
+            console.error('Login query error:', err);
+            return res.status(500).send('Login error');
+        }
+        
+        if (user && verifyPassword(password, user.password)) {
+            req.session.userId = user.id;
+            req.session.username = user.username;
+            return res.redirect('/home');
+        }
+        
+        res.status(404).send('<p>Invalid username or password.</p><a href="/">Back</a>');
+    });
+});
+
+/**
+ * GET /createAccount - Create account page
+ */
+app.get('/createAccount', (req, res) => {
+    res.sendFile(path.join(__dirname, 'html', 'createAccount.html'));
+});
+
+/**
+ * POST /createAccount - Handle account creation
+ */
+app.post('/createAccount', async (req, res) => {
+    const { username, email, password, confirmPassword } = req.body;
+    
+    // Validation
+    if (!username || !email || !password || !confirmPassword) {
+        return res.send('<p>All fields are required.</p><a href="/createAccount">Back</a>');
+    }
+    
+    if (password.length < PASSWORD_MIN_LENGTH) {
+        return res.send(`<p>Password must be at least ${PASSWORD_MIN_LENGTH} characters</p><a href="/createAccount">Back</a>`);
+    }
+    
+    if (password !== confirmPassword) {
+        return res.send('<p>Passwords do not match.</p><a href="/createAccount">Back</a>');
+    }
+
+    const hashedPassword = hashPassword(password);
+    
+    db.run(
+        'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
+        [username, email, hashedPassword],
+        function(err) {
+            if (err) {
+                console.error('Account creation error:', err);
+                if (err.message.includes('UNIQUE')) {
+                    return res.send('<p>Username already taken.</p><a href="/createAccount">Back</a>');
+                }
+                return res.send('Error creating account');
+            }
+            res.redirect('/');
+        }
+    );
+});
+
+/**
+ * GET /logout - Destroy session and logout
+ */
+app.get('/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Logout error:', err);
+        }
+        res.clearCookie('connect.sid');
+        res.redirect('/');
+    });
+});
+
+/* --------------------------------------------------
+   Main Application Routes
+-------------------------------------------------- */
+
+/**
+ * GET /home - Main home page (requires login)
+ */
+app.get('/home', requireLogin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'html', 'coverpage.html'));
+});
+
+/**
+ * GET /selectLocation - Location selection page
+ */
+app.get('/selectLocation', (req, res) => {
+    res.sendFile(path.join(__dirname, 'html', 'location.html'));
+});
+
+/* --------------------------------------------------
+   Indoor List Routes
+-------------------------------------------------- */
+
+/**
+ * GET /homeListsIndoor - View all indoor items
+ */
 app.get('/homeListsIndoor', requireLogin, (req, res) => {
     db.all(
         'SELECT * FROM items WHERE user_id = ? AND type = ?',
         [req.session.userId, 'Indoor'],
         (err, rows) => {
             if (err) {
-                console.error(err);
+                console.error('Error fetching indoor items:', err);
                 return res.send('Error loading lists');
             }
-            res.send(generateListHTML(rows, 'Indoor', 'addListIndoor', 'home', 'deleteListIndoor', 'editListIndoor'));
+            const html = generateListHTML(
+                rows, 
+                'Indoor', 
+                'addListIndoor', 
+                'home', 
+                'deleteListIndoor', 
+                'editListIndoor'
+            );
+            res.send(html);
         }
     );
 });
 
+/**
+ * GET /addListIndoor - Add indoor item page
+ */
 app.get('/addListIndoor', requireLogin, (req, res) => {
-    res.sendFile(__dirname + "/html/addlistIndoor.html");
+    res.sendFile(path.join(__dirname, 'html', 'addlistIndoor.html'));
 });
 
+/**
+ * POST /addListIndoor - Create new indoor item
+ */
 app.post('/addListIndoor', requireLogin, upload.single('image'), (req, res) => {
     const image = req.file ? req.file.filename : 'default.jpg';
+    const { itemOrfacility, description, comment, priority, estimatedCost } = req.body;
     
     db.run(
         `INSERT INTO items (user_id, type, itemOrfacility, description, comment, image, priority, estimatedCost) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.session.userId, 'Indoor', req.body.itemOrfacility, req.body.description, req.body.comment, image, req.body.priority, req.body.estimatedCost],
+        [req.session.userId, 'Indoor', itemOrfacility, description, comment, image, priority, estimatedCost],
         (err) => {
             if (err) {
-                console.error(err);
+                console.error('Error adding indoor item:', err);
                 return res.send("Error adding item");
             }
             res.redirect('/homeListsIndoor');
@@ -314,12 +442,20 @@ app.post('/addListIndoor', requireLogin, upload.single('image'), (req, res) => {
     );
 });
 
-app.post('/deleteListIndoor/:id', requireLogin, (req, res) => {
+/**
+ * POST /deleteListIndoor/:id - Delete indoor item
+ */
+app.post('/deleteListIndoor/:id', (req, res) => {
+    if (!isAuthenticated(req)) {
+        return res.json({ success: false });
+    }
+    
     db.run(
         'DELETE FROM items WHERE id = ? AND user_id = ?',
         [req.params.id, req.session.userId],
         (err) => {
             if (err) {
+                console.error('Error deleting indoor item:', err);
                 return res.json({ success: false });
             }
             res.json({ success: true });
@@ -327,12 +463,16 @@ app.post('/deleteListIndoor/:id', requireLogin, (req, res) => {
     );
 });
 
+/**
+ * GET /editListIndoor/:id - Edit indoor item page
+ */
 app.get('/editListIndoor/:id', requireLogin, (req, res) => {
     db.get(
         'SELECT * FROM items WHERE id = ? AND user_id = ?',
         [req.params.id, req.session.userId],
         (err, item) => {
             if (err || !item) {
+                console.error('Error fetching indoor item for edit:', err);
                 return res.redirect('/homeListsIndoor');
             }
             
@@ -351,18 +491,24 @@ app.get('/editListIndoor/:id', requireLogin, (req, res) => {
     );
 });
 
+/**
+ * POST /editListIndoor/:id - Update indoor item
+ */
 app.post('/editListIndoor/:id', requireLogin, upload.single('image'), (req, res) => {
-    let query = `UPDATE items SET itemOrfacility=?, description=?, comment=?, priority=?, estimatedCost=? WHERE id=? AND user_id=?`;
-    let params = [req.body.itemOrfacility, req.body.description, req.body.comment, req.body.priority, req.body.estimatedCost, req.params.id, req.session.userId];
+    const { itemOrfacility, description, comment, priority, estimatedCost } = req.body;
+    let query, params;
     
     if (req.file) {
         query = `UPDATE items SET itemOrfacility=?, description=?, comment=?, priority=?, estimatedCost=?, image=? WHERE id=? AND user_id=?`;
-        params = [req.body.itemOrfacility, req.body.description, req.body.comment, req.body.priority, req.body.estimatedCost, req.file.filename, req.params.id, req.session.userId];
+        params = [itemOrfacility, description, comment, priority, estimatedCost, req.file.filename, req.params.id, req.session.userId];
+    } else {
+        query = `UPDATE items SET itemOrfacility=?, description=?, comment=?, priority=?, estimatedCost=? WHERE id=? AND user_id=?`;
+        params = [itemOrfacility, description, comment, priority, estimatedCost, req.params.id, req.session.userId];
     }
 
     db.run(query, params, (err) => {
         if (err) {
-            console.error(err);
+            console.error('Error updating indoor item:', err);
             return res.send("Error updating");
         }
         res.redirect('/homeListsIndoor');
@@ -370,36 +516,55 @@ app.post('/editListIndoor/:id', requireLogin, upload.single('image'), (req, res)
 });
 
 /* --------------------------------------------------
-   Outdoor Routes
+   Outdoor List Routes
 -------------------------------------------------- */
+
+/**
+ * GET /homeListsOutdoor - View all outdoor items
+ */
 app.get('/homeListsOutdoor', requireLogin, (req, res) => {
     db.all(
         'SELECT * FROM items WHERE user_id = ? AND type = ?',
         [req.session.userId, 'Outdoor'],
         (err, rows) => {
             if (err) {
-                console.error(err);
+                console.error('Error fetching outdoor items:', err);
                 return res.send('Error loading lists');
             }
-            res.send(generateListHTML(rows, 'Outdoor', 'addListOutdoor', 'home', 'deleteListOutdoor', 'editListOutdoor'));
+            const html = generateListHTML(
+                rows, 
+                'Outdoor', 
+                'addListOutdoor', 
+                'home', 
+                'deleteListOutdoor', 
+                'editListOutdoor'
+            );
+            res.send(html);
         }
     );
 });
 
+/**
+ * GET /addListOutdoor - Add outdoor item page
+ */
 app.get('/addListOutdoor', requireLogin, (req, res) => {
-    res.sendFile(__dirname + "/html/addlistOutdoor.html");
+    res.sendFile(path.join(__dirname, 'html', 'addlistOutdoor.html'));
 });
 
+/**
+ * POST /addListOutdoor - Create new outdoor item
+ */
 app.post('/addListOutdoor', requireLogin, upload.single('image'), (req, res) => {
     const image = req.file ? req.file.filename : 'default.jpg';
+    const { itemOrfacility, description, comment, priority, estimatedCost } = req.body;
     
     db.run(
         `INSERT INTO items (user_id, type, itemOrfacility, description, comment, image, priority, estimatedCost) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.session.userId, 'Outdoor', req.body.itemOrfacility, req.body.description, req.body.comment, image, req.body.priority, req.body.estimatedCost],
+        [req.session.userId, 'Outdoor', itemOrfacility, description, comment, image, priority, estimatedCost],
         (err) => {
             if (err) {
-                console.error(err);
+                console.error('Error adding outdoor item:', err);
                 return res.send("Error adding item");
             }
             res.redirect('/homeListsOutdoor');
@@ -407,12 +572,20 @@ app.post('/addListOutdoor', requireLogin, upload.single('image'), (req, res) => 
     );
 });
 
-app.post('/deleteListOutdoor/:id', requireLogin, (req, res) => {
+/**
+ * POST /deleteListOutdoor/:id - Delete outdoor item
+ */
+app.post('/deleteListOutdoor/:id', (req, res) => {
+    if (!isAuthenticated(req)) {
+        return res.json({ success: false });
+    }
+    
     db.run(
         'DELETE FROM items WHERE id = ? AND user_id = ?',
         [req.params.id, req.session.userId],
         (err) => {
             if (err) {
+                console.error('Error deleting outdoor item:', err);
                 return res.json({ success: false });
             }
             res.json({ success: true });
@@ -420,12 +593,16 @@ app.post('/deleteListOutdoor/:id', requireLogin, (req, res) => {
     );
 });
 
+/**
+ * GET /editListOutdoor/:id - Edit outdoor item page
+ */
 app.get('/editListOutdoor/:id', requireLogin, (req, res) => {
     db.get(
         'SELECT * FROM items WHERE id = ? AND user_id = ?',
         [req.params.id, req.session.userId],
         (err, item) => {
             if (err || !item) {
+                console.error('Error fetching outdoor item for edit:', err);
                 return res.redirect('/homeListsOutdoor');
             }
             
@@ -444,18 +621,24 @@ app.get('/editListOutdoor/:id', requireLogin, (req, res) => {
     );
 });
 
+/**
+ * POST /editListOutdoor/:id - Update outdoor item
+ */
 app.post('/editListOutdoor/:id', requireLogin, upload.single('image'), (req, res) => {
-    let query = `UPDATE items SET itemOrfacility=?, description=?, comment=?, priority=?, estimatedCost=? WHERE id=? AND user_id=?`;
-    let params = [req.body.itemOrfacility, req.body.description, req.body.comment, req.body.priority, req.body.estimatedCost, req.params.id, req.session.userId];
+    const { itemOrfacility, description, comment, priority, estimatedCost } = req.body;
+    let query, params;
     
     if (req.file) {
         query = `UPDATE items SET itemOrfacility=?, description=?, comment=?, priority=?, estimatedCost=?, image=? WHERE id=? AND user_id=?`;
-        params = [req.body.itemOrfacility, req.body.description, req.body.comment, req.body.priority, req.body.estimatedCost, req.file.filename, req.params.id, req.session.userId];
+        params = [itemOrfacility, description, comment, priority, estimatedCost, req.file.filename, req.params.id, req.session.userId];
+    } else {
+        query = `UPDATE items SET itemOrfacility=?, description=?, comment=?, priority=?, estimatedCost=? WHERE id=? AND user_id=?`;
+        params = [itemOrfacility, description, comment, priority, estimatedCost, req.params.id, req.session.userId];
     }
 
     db.run(query, params, (err) => {
         if (err) {
-            console.error(err);
+            console.error('Error updating outdoor item:', err);
             return res.send("Error updating");
         }
         res.redirect('/homeListsOutdoor');
@@ -466,26 +649,39 @@ app.post('/editListOutdoor/:id', requireLogin, upload.single('image'), (req, res
    Security Testing Routes
 -------------------------------------------------- */
 
-// Test-only Upload Endpoint
-app.post('/upload', upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).send('No file uploaded');
-    }
-    res.send('Upload successful');
+/**
+ * POST /upload - Test-only upload endpoint with error handling
+ */
+app.post('/upload', (req, res) => {
+    const uploadHandler = upload.single('file');
+    
+    uploadHandler(req, res, (err) => {
+        if (err) {
+            return res.status(400).send(err.message);
+        }
+        
+        if (!req.file) {
+            return res.status(400).send('No file uploaded');
+        }
+        
+        res.send('Upload successful');
+    });
 });
 
-// Test-only Input Validation Endpoint (Security Tests)
+/**
+ * POST /addItem - Test-only input validation endpoint
+ */
 app.post('/addItem', (req, res) => {
     const { description, priority } = req.body;
     
-    // Reject script injection
+    // Validate against script injection
     if (description && description.includes('<script>')) {
         return res.status(400).send('Invalid input');
     }
     
-    // Reject invalid priority values (allowed 1–5)
-    const p = Number(priority);
-    if (isNaN(p) || p < 1 || p > 5) {
+    // Validate priority range
+    const priorityNum = Number(priority);
+    if (isNaN(priorityNum) || priorityNum < PRIORITY_MIN || priorityNum > PRIORITY_MAX) {
         return res.status(400).send('Invalid priority');
     }
     
