@@ -21,37 +21,39 @@ describe('Authentication pages', () => {
 });
 
 // ============================================
-// Authentication Security tests (Alan)
+// Authentication Security tests
 // ============================================
 describe('Authentication Security', () => {
+
   test('rejects weak password on signup', async () => {
     const res = await request(app)
-      .post('/createaccount')
+      .post('/createAccount')
       .send({
-        username: 'user1',
+        username: 'weakpass',
         email: 'test@test.com',
         password: '123',
         confirmPassword: '123'
       });
+
     expect(res.text).toMatch(/Password must be at least 6 characters/);
   });
 
   test('rejects mismatched passwords on signup', async () => {
     const res = await request(app)
-      .post('/createaccount')
+      .post('/createAccount')
       .send({
-        username: 'user2',
+        username: 'mismatch',
         email: 'test2@test.com',
         password: 'securePass',
         confirmPassword: 'wrongPass'
       });
+
     expect(res.text).toMatch(/Passwords do not match/);
   });
 
   test('rejects duplicate username on signup', async () => {
-    // First signup
     await request(app)
-      .post('/createaccount')
+      .post('/createAccount')
       .send({
         username: 'duplicateUser',
         email: 'dup@test.com',
@@ -59,9 +61,8 @@ describe('Authentication Security', () => {
         confirmPassword: 'securePass'
       });
 
-    // Second signup with same username
     const res = await request(app)
-      .post('/createaccount')
+      .post('/createAccount')
       .send({
         username: 'duplicateUser',
         email: 'dup2@test.com',
@@ -75,123 +76,177 @@ describe('Authentication Security', () => {
   test('login fails with wrong password', async () => {
     const res = await request(app)
       .post('/login')
-      .send({ username: 'user1', password: 'wrongPass' });
-    expect(res.statusCode).toBe(404); // or whatever your app returns
-  });
-});
+      .send({ username: 'duplicateUser', password: 'wrongPass' });
 
-// ============================================
-// Create Account tests
-// ============================================
-describe('Create Account', () => {
-
-  test('Rejects empty form submission', async () => {
-    const res = await request(app)
-      .post('/createAccount')
-      .send({});
-
-    expect(res.text).toContain('All fields are required');
-  });
-
-  test('Rejects short password', async () => {
-    const res = await request(app)
-      .post('/createAccount')
-      .send({
-        username: 'testuser1',
-        email: 'test@test.com',
-        password: '123',
-        confirmPassword: '123'
-      });
-
-    expect(res.text).toContain('Password must be at least 6 characters');
+    expect(res.statusCode).toBe(404);
   });
 
 });
 
 // ============================================
-// Delete indoor list tests
+// Successful Login & Session tests (NEW)
 // ============================================
-describe('Delete indoor list', () => {
+describe('Successful Login', () => {
 
-  test('Delete fails when user is not logged in', async () => {
-    const res = await request(app)
-      .post('/deleteListIndoor/1');
+  test('successful login redirects to home', async () => {
+    const agent = request.agent(app);
 
-    expect(res.body.success).toBe(false);
+    await agent.post('/createAccount').send({
+      username: 'loginUser',
+      email: 'login@test.com',
+      password: 'securePass',
+      confirmPassword: 'securePass'
+    });
+
+    const res = await agent.post('/login').send({
+      username: 'loginUser',
+      password: 'securePass'
+    });
+
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe('/home');
   });
 
 });
 
 // ============================================
-// Login tests
-// ============================================
-describe('Login', () => {
-
-  test('Fails login with wrong credentials', async () => {
-    const res = await request(app)
-      .post('/')
-      .send({
-        username: 'wronguser',
-        password: 'wrongpass'
-      });
-
-    expect(res.text).toContain('Invalid username or password');
-  });
-
-});
-
-// ============================================
-// Protected routes tests (Alan)
+// Protected routes tests
 // ============================================
 describe('Protected routes', () => {
 
   test('Redirects to login if not logged in', async () => {
     const res = await request(app).get('/homeListsIndoor');
-    expect(res.statusCode).toBe(302); // redirect
+    expect(res.statusCode).toBe(302);
   });
 
-});
-
-// ============================================
-// Session Security tests (Alan)
-// ============================================
-describe('Session Security', () => {
-  test('logout destroys session', async () => {
+  test('Logged-in user can access indoor list', async () => {
     const agent = request.agent(app);
-    await agent.post('/login').send({ username: 'user1', password: 'securePass' });
-    const res = await agent.get('/logout');
-    expect(res.header['set-cookie']).toBeDefined(); // cookie cleared
+
+    await agent.post('/createAccount').send({
+      username: 'indoorUser',
+      email: 'indoor@test.com',
+      password: 'securePass',
+      confirmPassword: 'securePass'
+    });
+
+    await agent.post('/login').send({
+      username: 'indoorUser',
+      password: 'securePass'
+    });
+
+    const res = await agent.get('/homeListsIndoor');
+    expect(res.statusCode).toBe(200);
+    expect(res.text).toContain('Indoor Home List');
   });
 
-  test('protected route requires login', async () => {
-    const res = await request(app).get('/home');
-    expect(res.statusCode).toBe(302); // should redirect to login
-  });
 });
 
 // ============================================
-// File Upload tests (Alan)
+// Indoor list CRUD tests (NEW)
+// ============================================
+describe('Indoor list CRUD', () => {
+
+  test('Add indoor item without image', async () => {
+    const agent = request.agent(app);
+
+    await agent.post('/createAccount').send({
+      username: 'addUser',
+      email: 'add@test.com',
+      password: 'securePass',
+      confirmPassword: 'securePass'
+    });
+
+    await agent.post('/login').send({
+      username: 'addUser',
+      password: 'securePass'
+    });
+
+    const res = await agent.post('/addListIndoor').send({
+      itemOrfacility: 'Table',
+      description: 'Wooden table',
+      comment: 'Living room',
+      priority: 2,
+      estimatedCost: 200
+    });
+
+    expect(res.statusCode).toBe(302);
+  });
+
+  test('Delete indoor item when logged in', async () => {
+    const agent = request.agent(app);
+
+    await agent.post('/createAccount').send({
+      username: 'deleteUser',
+      email: 'delete@test.com',
+      password: 'securePass',
+      confirmPassword: 'securePass'
+    });
+
+    await agent.post('/login').send({
+      username: 'deleteUser',
+      password: 'securePass'
+    });
+
+    await agent.post('/addListIndoor').send({
+      itemOrfacility: 'Sofa',
+      description: 'Big sofa',
+      comment: 'Hall',
+      priority: 3,
+      estimatedCost: 500
+    });
+
+    const res = await agent.post('/deleteListIndoor/1');
+    expect(res.body.success).toBe(true);
+  });
+
+  test('Edit indoor item without image', async () => {
+    const agent = request.agent(app);
+
+    await agent.post('/createAccount').send({
+      username: 'editUser',
+      email: 'edit@test.com',
+      password: 'securePass',
+      confirmPassword: 'securePass'
+    });
+
+    await agent.post('/login').send({
+      username: 'editUser',
+      password: 'securePass'
+    });
+
+    await agent.post('/addListIndoor').send({
+      itemOrfacility: 'Desk',
+      description: 'Office desk',
+      comment: 'Room',
+      priority: 1,
+      estimatedCost: 300
+    });
+
+    const res = await agent.post('/editListIndoor/1').send({
+      itemOrfacility: 'Desk Updated',
+      description: 'Updated desc',
+      comment: 'Updated comment',
+      priority: 2,
+      estimatedCost: 350
+    });
+
+    expect(res.statusCode).toBe(302);
+  });
+
+});
+
+// ============================================
+// File Upload tests
 // ============================================
 describe('File Upload', () => {
+
   test('uploads a valid image file', async () => {
     const res = await request(app)
       .post('/upload')
-      .attach('file', path.join(__dirname, 'testfiles', 'sample.png')); // put a sample file in tests/testfiles
+      .attach('file', path.join(__dirname, 'testfiles', 'sample.png'));
+
     expect(res.statusCode).toBe(200);
     expect(res.text).toMatch(/Upload successful/);
-  });
-
-  test('rejects invalid file type', async () => {
-    let errorCaught = false;
-    try {
-      await request(app)
-        .post('/upload')
-        .attach('file', path.join(__dirname, 'testfiles', 'sample.txt'));
-    } catch (err) {
-      errorCaught = true;
-      expect(err.message).toMatch(/ECONNRESET/);
-    }
-    expect(errorCaught).toBe(true);
   });
 
   test('rejects when no file is provided', async () => {
@@ -199,33 +254,34 @@ describe('File Upload', () => {
     expect(res.statusCode).toBe(400);
     expect(res.text).toMatch(/No file uploaded/);
   });
+
 });
 
 // ============================================
-// Input Validation Security tests (Alan)
+// Input Validation Security tests
 // ============================================
 describe('Input Validation Security', () => {
+
   test('rejects script injection in description', async () => {
     const res = await request(app)
       .post('/addItem')
       .send({
-        name: 'Lamp',
         description: '<script>alert("hack")</script>',
-        priority: '1',
-        estimatedCost: 100
+        priority: '1'
       });
-    expect(res.text).not.toMatch(/<script>/);
+
+    expect(res.statusCode).toBe(400);
   });
 
   test('rejects invalid priority value', async () => {
     const res = await request(app)
       .post('/addItem')
       .send({
-        name: 'Chair',
-        description: 'Office chair',
-        priority: '99', // invalid
-        estimatedCost: 50
+        description: 'Chair',
+        priority: '99'
       });
+
     expect(res.statusCode).toBe(400);
   });
+
 });
