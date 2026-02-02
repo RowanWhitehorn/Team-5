@@ -476,16 +476,44 @@ app.get('/editListIndoor/:id', requireLogin, (req, res) => {
                 return res.redirect('/homeListsIndoor');
             }
             
+            // EDITED: Now serves full HTML with CSS link and container class
             res.send(`
-                <form action="/editListIndoor/${item.id}" method="POST" enctype="multipart/form-data">
-                    Item: <input name="itemOrfacility" value="${item.itemOrfacility}" required /> <br>
-                    Desc: <input name="description" value="${item.description}" required /> <br>
-                    Comment: <input name="comment" value="${item.comment}" required /> <br>
-                    Priority: <input name="priority" value="${item.priority}" required /> <br>
-                    Cost: <input name="estimatedCost" value="${item.estimatedCost}" required /> <br>
-                    Image: <input type="file" name="image" /> <br>
-                    <button type="submit">Update</button>
-                </form>
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Edit Indoor Item</title>
+                    <link rel="stylesheet" href="/editListIndoor.css">
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Edit Indoor Item</h1>
+                        <form action="/editListIndoor/${item.id}" method="POST" enctype="multipart/form-data">
+                            <label>Item:</label>
+                            <input name="itemOrfacility" value="${item.itemOrfacility}" required /> <br>
+                            
+                            <label>Desc:</label>
+                            <input name="description" value="${item.description}" required /> <br>
+                            
+                            <label>Comment:</label>
+                            <input name="comment" value="${item.comment}" required /> <br>
+                            
+                            <label>Priority:</label>
+                            <input name="priority" value="${item.priority}" required /> <br>
+                            
+                            <label>Cost:</label>
+                            <input name="estimatedCost" value="${item.estimatedCost}" required /> <br>
+                            
+                            <label>Image:</label>
+                            <input type="file" name="image" /> <br>
+                            
+                            <button type="submit">Update</button>
+                            <a href="/homeListsIndoor">Cancel</a>
+                        </form>
+                    </div>
+                </body>
+                </html>
             `);
         }
     );
@@ -606,16 +634,44 @@ app.get('/editListOutdoor/:id', requireLogin, (req, res) => {
                 return res.redirect('/homeListsOutdoor');
             }
             
+            // EDITED: Now serves full HTML with CSS link and container class
             res.send(`
-                <form action="/editListOutdoor/${item.id}" method="POST" enctype="multipart/form-data">
-                    Item: <input name="itemOrfacility" value="${item.itemOrfacility}" required /> <br>
-                    Desc: <input name="description" value="${item.description}" required /> <br>
-                    Comment: <input name="comment" value="${item.comment}" required /> <br>
-                    Priority: <input name="priority" value="${item.priority}" required /> <br>
-                    Cost: <input name="estimatedCost" value="${item.estimatedCost}" required /> <br>
-                    Image: <input type="file" name="image" /> <br>
-                    <button type="submit">Update</button>
-                </form>
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Edit Outdoor Item</title>
+                    <link rel="stylesheet" href="/editListOutdoor.css">
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Edit Outdoor Item</h1>
+                        <form action="/editListOutdoor/${item.id}" method="POST" enctype="multipart/form-data">
+                            <label>Item:</label>
+                            <input name="itemOrfacility" value="${item.itemOrfacility}" required /> <br>
+                            
+                            <label>Desc:</label>
+                            <input name="description" value="${item.description}" required /> <br>
+                            
+                            <label>Comment:</label>
+                            <input name="comment" value="${item.comment}" required /> <br>
+                            
+                            <label>Priority:</label>
+                            <input name="priority" value="${item.priority}" required /> <br>
+                            
+                            <label>Cost:</label>
+                            <input name="estimatedCost" value="${item.estimatedCost}" required /> <br>
+                            
+                            <label>Image:</label>
+                            <input type="file" name="image" /> <br>
+                            
+                            <button type="submit">Update</button>
+                            <a href="/homeListsOutdoor">Cancel</a>
+                        </form>
+                    </div>
+                </body>
+                </html>
             `);
         }
     );
