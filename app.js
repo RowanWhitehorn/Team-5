@@ -1,5 +1,8 @@
 /* --------------------------------------------------
    DONE BY: Saidah & Shah (SQLite Version - No PostgreSQL)
+   Done by Alagappan (Security Testing, Delete Part)
+   Coverage; Done by Emmanuel
+   Refactor add , list , edit Irene
    Compatible with Express 5.x and your existing dependencies
    REFACTORED: Improved code organization and readability
 -------------------------------------------------- */
